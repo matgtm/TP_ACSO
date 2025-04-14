@@ -1,15 +1,79 @@
 #include "ej1.h"
 
 string_proc_list* string_proc_list_create(void){
+	// pido memoria
+	string_proc_list* lista = (string_proc_list*) malloc(sizeof(string_proc_list));
+	if (lista == NULL){
+		return NULL;
+	}
+	lista -> first = NULL;
+	lista -> last = NULL; 
+	return lista;
 }
 
 string_proc_node* string_proc_node_create(uint8_t type, char* hash){
+
+	string_proc_node* nodo = (string_proc_node*) malloc(sizeof(string_proc_node));
+	if (nodo == NULL){
+		return NULL;
+	}
+	nodo -> next = NULL;
+	nodo -> previous = NULL;
+	nodo -> type = type;
+	nodo -> hash = hash;
+
+	return nodo;
 }
 
 void string_proc_list_add_node(string_proc_list* list, uint8_t type, char* hash){
+	string_proc_node* nodo = string_proc_node_create(type, hash);
+	if (nodo == NULL){
+		return;
+	}
+	if (list->first == NULL){
+		list->first = nodo;
+		list->last = nodo;
+	}else{
+		nodo->previous = list->last;
+		list->last->next = nodo;
+		list->last = nodo;
+	}
 }
 
 char* string_proc_list_concat(string_proc_list* list, uint8_t type , char* hash){
+	/* PSEUDO: ver si la lista es no vacia, y si no es vacia, chequeo el nodo first, 
+	comparo types, si son iguales, concateno hash con str_concat, hago un while 
+	not last, adentro voy al next, hago misma comparacion y concat, y al final 
+	retorno el char* */
+	// si algo nulo
+	if (list == NULL || list->first == NULL){return hash;}
+
+	// primera pasada para crear memoria
+	size_t length = strlen(hash);
+	string_proc_node* current_node = list->first;
+
+	while(current_node != NULL){
+		if(current_node->type == type){
+			length += strlen(current_node->hash);
+		}
+		current_node = current_node->next;
+	}
+
+	// ultimo 0
+	length += 1;
+
+	char* concat_hash = (char*) malloc(length);
+	if(concat_hash == NULL){return NULL;}
+	
+	current_node = list->first;
+	while(current_node != NULL){
+		if (current_node->type == type){
+			concat_hash = str_concat(list->first->hash, hash);
+		}
+		current_node = current_node->next;
+	}
+	return concat_hash;
+
 }
 
 
@@ -63,4 +127,24 @@ void string_proc_list_print(string_proc_list* list, FILE* file){
                 current_node = current_node->next;
         }
 }
+
+#if USE_ASM_IMPL == 0
+
+string_proc_list* string_proc_list_create_asm(void) {
+    return string_proc_list_create();
+}
+
+string_proc_node* string_proc_node_create_asm(uint8_t type, char* hash) {
+    return string_proc_node_create(type, hash);
+}
+
+void string_proc_list_add_node_asm(string_proc_list* list, uint8_t type, char* hash) {
+    string_proc_list_add_node(list, type, hash);
+}
+
+char* string_proc_list_concat_asm(string_proc_list* list, uint8_t type, char* hash) {
+    return string_proc_list_concat(list, type, hash);
+}
+
+#endif
 

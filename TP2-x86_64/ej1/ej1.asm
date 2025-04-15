@@ -25,7 +25,7 @@ string_proc_list_create_asm:
     add rsp, 8
     test rax, rax
     je .ret_null
-    xor rax, rax
+    xor rdx, rdx
     mov qword [rax], NULL
     mov qword [rax+8], NULL
     ret

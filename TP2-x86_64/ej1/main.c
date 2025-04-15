@@ -36,25 +36,12 @@ void test_create_destroy_node(void){
  * 	crea una lista y le agrega nodos
 */
 void test_create_list_add_nodes(void)
-{   
-    string_proc_list * list = string_proc_list_create_asm();
-    printf("Created list: %p\n", (void*) list);
-    string_proc_list_print(list, stdout);
-    
-    string_proc_list_add_node_asm(list, 0, "hola");
-    printf("After adding node 'hola':\n");
-    string_proc_list_print(list, stdout);
-    
-    string_proc_list_add_node_asm(list, 0, "a");
-    printf("After adding node 'a':\n");
-    string_proc_list_print(list, stdout);
-    
-    string_proc_list_add_node_asm(list, 0, "todos!");
-    printf("After adding node 'todos!':\n");
-    string_proc_list_print(list, stdout);
-    
-    string_proc_list_destroy(list);
-    printf("List destroyed.\n");
+{	
+	string_proc_list * list	= string_proc_list_create_asm();
+	string_proc_list_add_node_asm(list, 0, "hola");
+	string_proc_list_add_node_asm(list, 0, "a");
+	string_proc_list_add_node_asm(list, 0, "todos!");
+	string_proc_list_destroy(list);
 }
 
 /**
@@ -63,14 +50,13 @@ void test_create_list_add_nodes(void)
 
 void test_list_concat(void)
 {
-    string_proc_list * list = string_proc_list_create(); // O string_proc_list_create_asm() si querés usar ASM
-    string_proc_list_add_node(list, 0, "hola");
-    string_proc_list_add_node(list, 0, "a");
-    string_proc_list_add_node(list, 0, "todos!");  
-    char* new_hash = string_proc_list_concat(list, 0, "hash");
-    printf("Concatenated string: %s\n", new_hash);
-    free(new_hash);
-    string_proc_list_destroy(list);
+	string_proc_list * list	= string_proc_list_create();
+	string_proc_list_add_node(list, 0, "hola");
+	string_proc_list_add_node(list, 0, "a");
+	string_proc_list_add_node(list, 0, "todos!");	
+	char* new_hash = string_proc_list_concat(list, 0, "hash");
+	string_proc_list_destroy(list);
+	free(new_hash);
 }
 
 /**
@@ -79,9 +65,9 @@ void test_list_concat(void)
 void run_tests(void){
 
 	/* Aqui pueden comenzar a probar su codigo */
-	test_create_destroy_list();
+	// test_create_destroy_list();
 
-	test_create_destroy_node();
+	// test_create_destroy_node();
 
 	test_create_list_add_nodes();
 

@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <stdbool.h>
 
-#define USE_ASM_IMPL 0
+#define USE_ASM_IMPL 1
 
 /** Lista **/
 typedef struct string_proc_list_t {
@@ -15,10 +15,11 @@ typedef struct string_proc_list_t {
 
 /** Nodo **/
 typedef struct string_proc_node_t {
-	struct string_proc_node_t* next;
-	struct string_proc_node_t* previous;
-	uint8_t type;
-	char* hash;
+	struct string_proc_node_t* next; // 8 bytes
+	struct string_proc_node_t* previous; // 8 bytes
+	uint8_t type; // 1 byte + 7 padd
+	char* hash; // 8 bytes
+	            // total 8x4 = 32
 } string_proc_node;
        
 /** Funciones a implementar:  **/

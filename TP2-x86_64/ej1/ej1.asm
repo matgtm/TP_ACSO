@@ -24,10 +24,10 @@ string_proc_list_create_asm:
     test rax, rax
     je .ret_null
     xor rax, rax
-    mov [rax], NULL
-    mov [rax+8], NULL
+    mov qword [rax], NULL
+    mov qword [rax+8], NULL
     ret
-    
+
 .ret_null:
     ret
 

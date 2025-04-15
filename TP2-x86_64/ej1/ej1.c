@@ -46,7 +46,12 @@ char* string_proc_list_concat(string_proc_list* list, uint8_t type , char* hash)
 	not last, adentro voy al next, hago misma comparacion y concat, y al final 
 	retorno el char* */
 	// si algo nulo
-	if (list == NULL || list->first == NULL){return hash;}
+	if (list == NULL || list->first == NULL){
+		char* res = (char*) malloc(strlen(hash) + 1);
+        if (res != NULL)
+            strcpy(res, hash);
+        return res;
+	}
 
 	// primera pasada para crear memoria
 	size_t length = strlen(hash);
@@ -64,6 +69,8 @@ char* string_proc_list_concat(string_proc_list* list, uint8_t type , char* hash)
 
 	char* concat_hash = (char*) malloc(length);
 	if(concat_hash == NULL){return NULL;}
+
+	strcpy(concat_hash, hash);
 	
 	current_node = list->first;
 	while(current_node != NULL){

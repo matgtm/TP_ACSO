@@ -19,6 +19,17 @@ extern str_concat
 
 
 string_proc_list_create_asm:
+    mov rdi, 16
+    call malloc
+    test rax, rax
+    je .ret_null
+    xor rax, rax
+    mov [rax], NULL
+    mov [rax+8], NULL
+    ret
+    
+.ret_null:
+    ret
 
 string_proc_node_create_asm:
 

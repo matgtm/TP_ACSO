@@ -75,7 +75,7 @@ char* string_proc_list_concat(string_proc_list* list, uint8_t type , char* hash)
 	current_node = list->first;
 	while(current_node != NULL){
 		if (current_node->type == type){
-			concat_hash = str_concat(list->first->hash, hash);
+			strcat(concat_hash, current_node->hash);
 		}
 		current_node = current_node->next;
 	}

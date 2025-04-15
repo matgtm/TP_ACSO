@@ -128,23 +128,3 @@ void string_proc_list_print(string_proc_list* list, FILE* file){
         }
 }
 
-// #if USE_ASM_IMPL == 0
-
-// string_proc_list* string_proc_list_create_asm(void) {
-//     return string_proc_list_create();
-// }
-
-// string_proc_node* string_proc_node_create_asm(uint8_t type, char* hash) {
-//     return string_proc_node_create(type, hash);
-// }
-
-// void string_proc_list_add_node_asm(string_proc_list* list, uint8_t type, char* hash) {
-//     string_proc_list_add_node(list, type, hash);
-// }
-
-// char* string_proc_list_concat_asm(string_proc_list* list, uint8_t type, char* hash) {
-//     return string_proc_list_concat(list, type, hash);
-// }
-
-// #endif
-

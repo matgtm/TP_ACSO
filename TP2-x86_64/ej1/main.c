@@ -10,6 +10,9 @@
 */
 void test_create_destroy_list(void){
 	string_proc_list * list	= string_proc_list_create_asm();
+	printf("list: %p\n", list);
+    printf("list->first: %p\n", list->first);
+    printf("list->last : %p\n", list->last);
 	string_proc_list_destroy(list);
 }
 

@@ -84,7 +84,7 @@ char* string_proc_list_concat(string_proc_list* list, uint8_t type , char* hash)
 	return concat_hash;
 
 }
-
+#endif
 
 /** AUX FUNCTIONS **/
 
@@ -136,5 +136,5 @@ void string_proc_list_print(string_proc_list* list, FILE* file){
                 current_node = current_node->next;
         }
 }
-#endif
+
 

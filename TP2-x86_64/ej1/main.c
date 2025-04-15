@@ -83,7 +83,7 @@ void run_tests(void){
 
 	test_create_destroy_node();
 
-	// test_create_list_add_nodes();
+	test_create_list_add_nodes();
 
 	// test_list_concat();
 }

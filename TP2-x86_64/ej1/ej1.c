@@ -1,5 +1,7 @@
 #include "ej1.h"
 
+#if !USE_ASM_IMPL
+
 string_proc_list* string_proc_list_create(void){
 	// pido memoria
 	string_proc_list* lista = (string_proc_list*) malloc(sizeof(string_proc_list));
@@ -134,4 +136,5 @@ void string_proc_list_print(string_proc_list* list, FILE* file){
                 current_node = current_node->next;
         }
 }
+#endif
 

@@ -7,6 +7,13 @@
 
 #define USE_ASM_IMPL 1
 
+#if USE_ASM_IMPL
+  #define string_proc_list_create   string_proc_list_create_asm
+  #define string_proc_node_create   string_proc_node_create_asm
+  #define string_proc_list_add_node string_proc_list_add_node_asm
+  #define string_proc_list_concat   string_proc_list_concat_asm
+#endif
+
 /** Lista **/
 typedef struct string_proc_list_t {
 	struct string_proc_node_t* first;

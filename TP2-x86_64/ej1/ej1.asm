@@ -19,8 +19,10 @@ extern str_concat
 
 
 string_proc_list_create_asm:
+    sub rsp, 8
     mov rdi, 16
     call malloc
+    add rsp, 8
     test rax, rax
     je .ret_null
     xor rax, rax

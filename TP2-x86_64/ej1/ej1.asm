@@ -64,39 +64,70 @@ string_proc_node_create_asm:
 
 
 string_proc_list_add_node_asm:
-    ;params que recibo: lista -> RDI, type -> RSI, hash -> RDX 
-    mov r8, rdi ; list->r8
-    ;llamo a create node, con type en RDI y hash en RSI
-    mov rdi, rsi ;muevo type
-    mov rsi, rdx ;muevo hash
+    ; ===== Prologo =====
+    push rbp
+    mov rbp, rsp
+    push r12    ; Guardar registros no volátiles
+    push r13
+    push r14
 
-    call string_proc_node_create_asm
-    ; ptr nodo creado -> rax
-    mov r9, rax ;nodo nuevo -> r9
-    test r9, r9
-    je .end
+    sub rsp, 8  ; Alinear la pila a 16 bytes
 
-    ; chequeo si list->first es nulo
-    mov rax, qword[r8]
+    ; ===== Guardar parámetros =====
+    ; RDI: pointer a la lista -> guardo en r12
+    ; RSI: type              -> guardo en r13
+    ; RDX: hash pointer      -> guardo en r14
+    mov r12, rdi      ; r12 = lista
+    mov r13, rsi      ; r13 = type
+    mov r14, rdx      ; r14 = hash
+
+    ; ===== Llamar a string_proc_node_create_asm =====
+    ; Preparo la llamada: necesito que en RDI esté type y en RSI el hash
+    mov rdi, r13      ; pasa type
+    mov rsi, r14      ; pasa hash
+    call string_proc_node_create_asm  ; nueva nodo en RAX
+
+    ; chequeo que la creación fue exitosa
     test rax, rax
-    jne .not_empty
+    je .end          ; Si RAX es NULL, no hago nada más
 
-    ;La lista esta vacia: first y last deben apuntar al nodo nuevo 
-    mov qword [r8], r9
-    mov qword [r8+8], r9
+    ; ===== Obtener el pointer de list->last =====
+    ; Queremos actualizar el campo last de la lista; ese campo se encuentra en
+    ; el offset OFFSET_LAST (8) de la estructura de la lista.
+    mov r8, r12     ; r8 = lista
+    add r8, OFFSET_LAST  ; r8 apunta a list->last
+
+    ; ===== Guardar el viejo último nodo =====
+    mov r9, qword [r8]   ; r9 = *list->last
+
+    cmp r9, NULL
+    je .is_empty      ; Si list->last es NULL, la lista estaba vacía
+
+    ; ===== Caso lista no vacía =====
+    ; Actualizo: 
+    ;   list->last = nuevo nodo (RAX)
+    ;   viejo_last->next = nuevo nodo
+    ;   nuevo nodo->previous = viejo_last
+    ;   nuevo nodo->next = NULL
+    mov qword [r8], rax                      ; list->last = nuevo nodo
+    mov qword [r9 + OFFSET_NEXT], rax        ; viejo_last->next = nuevo nodo
+    mov qword [rax + OFFSET_PREVIOUS], r9      ; nuevo nodo->previous = viejo_last
+    mov qword [rax + OFFSET_NEXT], 0           ; nuevo nodo->next = NULL
     jmp .end
 
-;caso en que la lista no estaba vacia
-.not_empty:     
-
-    mov rax, qword [r8+8]   ; muevo last a r9
-    mov qword [rax], r9     ; last->next apunta a nodo nuevo
-    mov qword [r9+8], rax   ; nuevo nodo->previous apunta a last
-    mov qword [r8+8], r9 ; actualizo last para q apunte a nodo nuevo
+.is_empty:
+    ; ===== Caso lista vacía =====
+    ; Si la lista estaba vacía, entonces asigno el nuevo nodo a ambos campos.
+    mov qword [r12 + OFFSET_FIRST], rax
+    mov qword [r12 + OFFSET_LAST], rax
 
 .end:
+    add rsp, 8  ; Restaurar la alineación
+    pop r14
+    pop r13
+    pop r12
+    pop rbp
     ret
-
 
 string_proc_list_concat_asm:
     ; Parámetros:

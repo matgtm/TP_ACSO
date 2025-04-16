@@ -151,73 +151,54 @@ string_proc_list_add_node_asm:
 
 
 
-
-; RDI = ptr lista, RSI = tipo (sil), RDX = hash inicial (literal)
+; RDI = ptr a la lista, RSI = tipo (sil), RDX = ptr al hash inicial (literal)
 string_proc_list_concat_asm:
-
-    ; -------- prólogo --------
+    ; ——— Prólogo ———
     push rbp
     mov  rbp, rsp
+    push rbx                ; salvo rbx y r12 (no‑volátiles)
+    push r12
+    sub  rsp, 8             ; alineo a 16 bytes antes de cualquier call
 
-    push r12            ; salvo no‑volátiles que voy a usar
-    push r13
-    push r14
-    push r15
+    ; ——— Guardar parámetros ———
+    mov  rbx, rdi           ; rbx = ptr lista
+    mov  r12b, sil          ; r12b = target type
 
-    sub  rsp, 8         ; alineo ‑‑ ABI exige 16 B antes de call
+    ; ——— Init dinámico (copio literal) ———
+    mov  rdi, rdx           ; rdi = literal inicial
+    lea  rsi, [rel empty_str]
+    call str_concat         ; RAX = malloc+strcpy(literal)
+    mov  rdx, rax           ; rdx = acumulado dinámico
 
-    xor  r10, r10       ; r10 = 0  → contador de concat realizadas
-
-    ; primer nodo para empezar a recorrer
-    mov  r8, [rdi + OFFSET_FIRST]
+    ; ——— Empiezo a recorrer la lista ———
+    mov  r8, [rbx + OFFSET_FIRST]   ; r8 = primer nodo
 
 .loop:
     test r8, r8
-    je   .fin           ; terminé la lista
+    je   .done               ; fin si llegué al final
 
-    ; ¿type coincide?
-    cmp  [r8 + OFFSET_TYPE], sil
-    jne  .sig           ; si no coincide, salto
+    cmp  byte [r8 + OFFSET_TYPE], sil
+    jne  .next_node          ; si no coincide el tipo, salto
 
-    ; ----- coincide: concat -----
-    ; respaldo para restaurar luego
-    mov  r12, rdi       ; lista
-    mov  r13b, sil      ; tipo
-    mov  r14, rdx       ; acumulado viejo
-    mov  r15, r8        ; nodo actual
+    ; ——— Coincide: concateno nodo->hash al acumulado ———
+    mov  rdi, rdx           ; rdi = acumulado viejo
+    mov  rsi, [r8 + OFFSET_HASH] ; rsi = hash del nodo
+    call str_concat         ; RAX = nuevo acumulado mallocado
 
-    ; str_concat(acumulado, nodo->hash)
-    mov  rdi, rdx
-    mov  rsi, [r8 + OFFSET_HASH]
-    call str_concat          ; RAX = nuevo string (malloc)
+    mov  r9,  rax           ; r9 = puntero al acumulado nuevo
+    mov  rdi, rdx           ; rdi = acumulado viejo
+    call free               ; libero acumulado anterior
+    mov  rdx, r9            ; rdx = acumulado actualizado
 
-    ; libero acumulado viejo sólo si no es el literal inicial
-    cmp  r10, 0
-    je   .skipFree
-    mov  rdi, r14
-    call free
-.skipFree:
-    inc  r10                 ; a partir de ahora, siempre libero
-
-    ; actualizo acumulado y restauro registros
-    mov  rdx, rax            ; nuevo acumulado
-    mov  rdi, r12
-    mov  sil, r13b
-    mov  r8,  r15
-
-.sig:
-    ; paso al siguiente nodo
-    mov  r8, [r8 + OFFSET_NEXT]
+.next_node:
+    mov  r8, [r8 + OFFSET_NEXT]  ; avanzo al siguiente nodo
     jmp  .loop
 
-.fin:
-    ; -------- epílogo --------
-    mov  rax, rdx            ; devuelvo hash concatenado
+.done:
+    mov  rax, rdx           ; devuelvo acumulado final en RAX
 
-    add  rsp, 8              ; deshago alineación
-    pop  r15
-    pop  r14
-    pop  r13
+    add  rsp, 8             ; deshago alineación
     pop  r12
+    pop  rbx
     pop  rbp
     ret

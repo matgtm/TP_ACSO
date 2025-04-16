@@ -15,6 +15,7 @@ empty_str: db 0
 
 dbg_format: db "Nodo actual: %p, type: %d, hash: %s", 10, 0
 dbg_line:   db "-------------------------", 10, 0
+dbg_next: db "Siguiente nodo: %p", 10, 0
 
 
 
@@ -230,8 +231,10 @@ string_proc_list_concat_asm:
     mov r13, rax
 
 .siguienteNodo:
-    ; Avanzamos al siguiente nodo: el campo next se encuentra en OFFSET_NEXT (usualmente 0)
-    mov rdx, qword [rdx + OFFSET_NEXT]
+    mov rdx, qword [rdx + OFFSET_NEXT] ; rdx = dirección del siguiente nodo
+    mov rdi, dbg_next                  ; formato para imprimir el puntero
+    mov rsi, rdx                       ; el puntero siguiente
+    call printf                        ; imprimir
     jmp .recorrido_lista
 
 .fin:

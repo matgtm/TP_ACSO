@@ -2,6 +2,13 @@
 %define NULL 0
 %define TRUE 1
 %define FALSE 0
+%define OFFSET_FIRST     0       ; Primer campo de string_proc_list_t (first)
+%define OFFSET_LAST      8       ; Segundo campo de string_proc_list_t (last)
+
+%define OFFSET_NEXT      0       ; Primer campo de string_proc_node_t (next)
+%define OFFSET_PREVIOUS  8       ; Segundo campo (previous)
+%define OFFSET_TYPE      16      ; Tercer campo (type, 1 byte, luego 7 bytes de padding)
+%define OFFSET_HASH      24      ; Cuarto campo (hash)
 
 section .data
 empty_str: db 0    

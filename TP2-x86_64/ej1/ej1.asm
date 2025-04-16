@@ -150,67 +150,82 @@ string_proc_list_add_node_asm:
 
 
 
-
-
 ; Tengo: puntero a lista en RDI, tipo en RSI (en sil) y puntero a hash en RDX.
 string_proc_list_concat_asm:
-
-    push rbp                ; Guardo el base pointer
-    mov rbp, rsp            ; Establezco mi frame de pila
-
-    push r12                ; Resguardo registros no volátiles que voy a usar para llamar a str_concat
+    push rbp                ; Prologo: guardo base pointer
+    mov rbp, rsp
+    push rbx                ; resguardo registros no volátiles
+    push r12
     push r13
     push r14
     push r15
 
-    ; Tomo el primer nodo de la lista para iterar.
-    mov r8, [rdi + OFFSET_FIRST]  ; r8 = primer nodo
+    sub rsp, 8              ; Alinear la pila a 16 bytes para llamadas externas
 
-.ciclo:
-    cmp r8, NULL            ; Si r8 es NULL, ya no hay nodos y termino el ciclo.
-    je .finCiclo
-    ; Comparo el tipo del nodo actual con el tipo pasado en sil.
-    cmp [r8 + OFFSET_TYPE], sil
-    je .mismoTipo
-    jne .siguienteNodo
+    ; Guardar parámetros:
+    mov rbx, rdi            ; rbx = puntero a la lista
+    mov r12b, sil           ; r12b = target type
+    ; Convertir la cadena literal (parámetro inicial en RDX) en una cadena dinámica
+    mov rdi, rdx            ; rdi = initial hash (literal)
+    lea rsi, [rel empty_str] ; rsi = cadena vacía
+    call str_concat         ; nuevo string dinámico en RAX
+    mov rdx, rax            ; rdx = acumulado actual (esto asegura que no intentamos free el literal)
+
+    ; Tomar el primer nodo de la lista:
+    mov r8, qword [rbx + OFFSET_FIRST]  ; r8 = list->first
+
+.recorrido:
+    test r8, r8
+    je .finCiclo          ; Si no hay nodo, termino
+
+    ; Comparar el campo type del nodo actual con el target type.
+    mov al, byte [r8 + OFFSET_TYPE]
+    cmp al, r12b          ; Comparo: nodo->type vs target type
+    jne .siguienteNodo    ; Si no coincide, salto
 
 .mismoTipo:
-    ; resguardamos los parámetros de entrada (rdi, sil y rdx) y el que estamos usando para avanzar (R8)
-    mov r12, rdi        ; r12 = lista
-    mov r13b, sil       ; r13b = target type
-    mov r14, rdx        ; r14 = acumulado anterior (hash)
-    mov r15, R8         ; r15 = nodo actual (que estamos recorriendo)
+    ; Resguardar parámetros:
+    ; Guardar el acumulado anterior en r15 para liberarlo después.
+    mov r15, rdx        ; r15 = acumulado viejo
+    ; Guardar el puntero al nodo actual en r14 para restaurarlo.
+    mov r14, r8         ; r14 = nodo actual
 
-    ; Preparamos la llamada a str_concat:
-    mov rdi, rdx               ; rdi = acumulado anterior (hash) -- RDX no se modifica aquí aún
-    mov rsi, [R8 + OFFSET_HASH]; rsi = hash del nodo actual
-    call str_concat            ; nuevo acumulado en RAX
+    ; Preparar llamada a str_concat:
+    mov rdi, rdx              ; rdi = acumulado viejo (por ejemplo, la cadena actual)
+    mov rsi, qword [r8 + OFFSET_HASH]  ; rsi = hash del nodo actual
+    call str_concat           ; RAX = nuevo acumulado concatenado
 
-    ; Liberamos el acumulado anterior
-    mov rdi, r14
-    call free
+    ; Actualizo acumulado y libero el anterior:
+    mov rdx, rax            ; rdx = nuevo acumulado
+    mov rdi, r15            ; rdi = acumulado viejo
+    call free               ; libero el acumulado viejo
 
-    ; Actualizamos el acumulado
-    mov r14, rax             ; r14 = nuevo acumulado (opcional, si querés preservarlo)
-    mov rdx, r15             ; restauramos nodo actual en RDX
-
-    ; Restauramos parámetros originales para continuar
-    mov rdi, r12
-    mov sil, r13b
-    mov rdx, r14             ; Ahora, usamos r14 como acumulado actualizado
-
-    ; Luego, en el bloque de avance, se hará la actualización de rdx con el siguiente nodo...
+    ; Restaurar los parámetros para continuar:
+    mov r8, r14            ; r8 = nodo actual (restaurado)
 
 .siguienteNodo:
     ; Avanzo al siguiente nodo: leo el campo next (OFFSET_NEXT, que es 0)
-    mov r8, [r8 + OFFSET_NEXT] ; r8 = dirección del siguiente nodo
-    jmp .ciclo
+    mov r8, qword [r8 + OFFSET_NEXT]
+    jmp .recorrido
 
 .finCiclo:
-    mov rax, rdx           ; Coloco el acumulado final en RAX para retornar
+    add rsp, 8            ; Restaurar alineación de la pila
     pop r15
     pop r14
     pop r13
     pop r12
+    pop rbx
+    pop rbp
+
+    mov rax, rdx          ; Retorno el acumulado final en RAX
+    ret
+
+.ret_null:
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
     pop rbp
     ret

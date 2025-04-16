@@ -224,6 +224,15 @@ string_proc_list_concat_asm:
     call str_concat           ; RAX = nuevo acumulado concatenado
     mov rdx, r14              ; restauro el nodo actual en rdx
 
+
+    ; Debug: imprimir el nuevo acumulado
+    ; Suponiendo que definís en la sección .data un formato, por ejemplo:
+    ; dbg_acum: db "Nuevo acumulado: %p, cadena: %s", 10, 0
+    mov rdi, dbg_acum         ; formato de depuración
+    mov rsi, rax              ; nuevo acumulado
+    call printf               ; imprime el resultado
+
+    mov rdx, r14   
     ; Liberamos el acumulado anterior
     mov rdi, r13
     call free

@@ -69,11 +69,11 @@ void test_list_concat(void)
 void run_tests(void){
 
 	/* Aqui pueden comenzar a probar su codigo */
-	// test_create_destroy_list();
+	test_create_destroy_list();
 
 	// test_create_destroy_node();
 
-	test_create_list_add_nodes();
+	// test_create_list_add_nodes();
 
 	// test_list_concat();
 }

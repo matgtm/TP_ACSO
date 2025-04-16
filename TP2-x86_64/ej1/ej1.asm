@@ -87,11 +87,7 @@ string_proc_list_add_node_asm:
     jmp .end
 
 ;caso en que la lista no estaba vacia
-.not_empty:
-
-    mov rdi, dbg_fmt       ; formato "Debug: list->last = %p"
-    mov rsi, qword [r8+8]   ; rsi = list->last
-    call printf       
+.not_empty:     
 
     mov rax, qword [r8+8]   ; muevo last a r9
     mov qword [rax], r9     ; last->next apunta a nodo nuevo

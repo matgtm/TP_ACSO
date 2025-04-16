@@ -155,57 +155,49 @@ string_proc_list_add_node_asm:
 
 
 
-
-; RDI = ptr a la lista, RSI = tipo (sil), RDX = ptr al hash inicial (literal)
+; RDI = lista*, RSI = type (sil), RDX = hash_inicial*
 string_proc_list_concat_asm:
-    ; ——— Prólogo ———
     push rbp
     mov  rbp, rsp
-    push rbx               ; salvo rbx y r12 (no‑volátiles)
-    push r12
-    sub  rsp, 8            ; alineo a 16 bytes para cualquier call
+    push rbx
+    push r12             ; r12b guardará el tipo
+    push r13             ; acumulador dinámico
+    sub  rsp, 8          ; mantener alineación
 
-    ; ——— Guardar ptr lista y target type ANTES de llamar ———
-    mov  rbx, rdi          ; rbx = puntero a la lista
-    mov  r12b, sil         ; r12b = tipo objetivo
-
-    ; ——— Inicializo acumulado en heap ———
-    ; Convierte el literal inicial en un string malloc’ed
+    ;--- parámetros fijos
+    mov  rbx, rdi        ; lista
+    mov  r12b, sil       ; type (NO se tocará más)
     mov  rdi, rdx
     lea  rsi, [rel empty_str]
-    call str_concat        ; RAX = malloc+strcpy(literal)
-    mov  rdx, rax          ; rdx = acumulado dinámico
+    call str_concat      ; copia dinámica de hash_inicial
+    mov  r13, rax        ; r13 = acumulador
 
-    ; ——— Empiezo a recorrer la lista ———
-    mov  r8, [rbx + OFFSET_FIRST]  ; r8 = primer nodo
-
+    ;--- recorrido
+    mov  r8, [rbx + OFFSET_FIRST]
 .loop:
-    test r8, r8           
-    je   .done             ; fin si no hay más nodos
+    test r8, r8
+    je   .done
 
-    ; ¿coincide el tipo?
-    cmp  byte [r8 + OFFSET_TYPE], sil
-    jne  .next_node
+    cmp  byte [r8 + OFFSET_TYPE], r12b ; usar registro no‑volátil
+    jne  .next
 
-    ; ——— Coincide: concateno nodo->hash al acumulado ———
-    mov  rdi, rdx               ; rdi = acumulado viejo
-    mov  rsi, [r8 + OFFSET_HASH] ; rsi = hash del nodo
-    call str_concat             ; RAX = nuevo acumulado malloc’ed
+    ; --- concat y free de bloque viejo ---
+    mov  rdi, r13
+    mov  rsi, [r8 + OFFSET_HASH]
+    call str_concat
+    mov  rdi, r13
+    call free
+    mov  r13, rax
 
-    mov  r9,  rax               ; r9 = puntero al acumulado nuevo
-    mov  rdi, rdx               ; rdi = acumulado viejo
-    call free                   ; libero acumulado viejo
-    mov  rdx, r9                ; rdx = acumulado actualizado
-
-.next_node:
-    mov  r8, [r8 + OFFSET_NEXT] ; r8 = siguiente nodo
+.next:
+    mov  r8, [r8 + OFFSET_NEXT]
     jmp  .loop
 
 .done:
-    ; ——— Epílogo ———
-    mov  rax, rdx               ; rax = acumulado final
-    add  rsp, 8                 ; deshago alineación
+    add  rsp, 8
+    pop  r13
     pop  r12
     pop  rbx
     pop  rbp
+    mov  rax, r13        ; devolver acumulado
     ret

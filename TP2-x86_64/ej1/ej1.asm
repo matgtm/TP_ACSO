@@ -70,121 +70,85 @@ string_proc_node_create_asm:
     ret
 
 
-string_proc_list_add_node_asm:
-    ; ===== Prologo =====
-    ; Uso stack para preservar valores qu dsp hay que restaurar
-    ; acomodo bp y sp
+; tengo ptr a list en RDI
+; tengo type en RSI
+; tengo ptr a hash en RDX
+string_proc_list_concat_asm:
+    ; En stack:
     push rbp
     mov rbp, rsp
+    push rbx       
+    push r12        
+    push r13       
+    push r14        
+    push r15      
 
-     ; Guardo registros no volátiles en stack para devolver al terminar funcion
-    push rbx
-    push r12   
-    push r13
+    ; alineo la pila a 16 bytes para la llamada a str_concat 
+    sub rsp, 8
 
-    ; Alineo la pila a 16 bytes
-    sub rsp, 8  
+    ; params de entrada:
+    ;   RDI = puntero a la lista 
+    ;   RSI = type (uint8_t) 
+    ;   RDX = puntero a hash
+    ;
+    ; Saco list/type/hash de RDI/RSI/RDX -> van para rbx/r12b/r13
+    mov rbx, rdi             ; rbx = puntero a lista
+    mov r12b, sil            ; r12b = type
+    mov r13, rdx             ; r13 = hash ptr
 
-    ; Guardo params
-    ; RDI: pointer a la lista -> guardo en rbx
-    ; RSI: type              -> guardo en r12
-    ; RDX: hash pointer      -> guardo en r13
-    mov rbx, rdi    ; rdx tiene lista
-    mov r12, rsi    ; r12 tiene type  
-    mov r13, rdx    ; r13 tiene hash
-    
-     
-    ; ===== Llamar a string_proc_node_create_asm =====
-    ; Preparo la llamada: necesito que en RDI esté type y en RSI el hash
-    mov rdi, r12      ; pasa type 
-    mov rsi, r13      ; pasa hash
-    call string_proc_node_create_asm  ; entra nuevo nodo a RAX
+    ; Primera concatenacion: hash actual + nada (asi puedo liberar memoria en recorrido)
+    mov rdi, rdx            ; primer argumento: initial hash
+    lea rsi, [rel empty_str]  ; segundo argumento: ptr a cadena vacía
+    call str_concat         ; devuelve el nuevo string en RAX
+    mov r13, rax            ; r13 = ptr a hash 'concatenado'
 
-    ; chequeo que haya creado algo
-    test rax, rax
-    je .end          ; Si RAX es NULL, no hago nada más
+    ; Primer caso especial: si ptr a list es NULL
+    cmp rbx, NULL 
+    je .fin
 
-    ; ===== Obtengo el puntero de list->last =====
-    ; Queremos actualizar el campo last de la lista; ese campo se encuentra en
-    ; el offset OFFSET_LAST (8) de la estructura de la lista.
-    mov r8, rbx     ; r8 = lista
-    add r8, OFFSET_LAST  ; r8 apunta a list->last
+    ;Segundo caso especial: lista es vacia -> lo chequeo en ciclo con current == NULL
 
-    ; ===== Guardar el viejo último nodo =====
-    mov r9, qword [r8]   ; r9 = *list->last
+    ; empiezo a recorrer la lista: list->first
+    mov rdx, qword [rbx + OFFSET_FIRST]   ; rdx = list->first
 
-    cmp r9, NULL
-    je .is_empty      ; Si list->last es NULL, la lista estaba vacía
+.recorrido_lista:
+    test rdx, rdx
+    je .fin          ; si rdx es NULL, termino el recorrido
 
-    ; ===== Caso lista no vacía =====
-    ; Actualizo: 
-    ;   list->last = nuevo nodo (RAX)
-    ;   viejo_last->next = nuevo nodo
-    ;   nuevo nodo->previous = viejo_last
-    ;   nuevo nodo->next = NULL
-    mov qword [r8], rax                      ; list->last = nuevo nodo
-    mov qword [r9 + OFFSET_NEXT], rax        ; viejo_last->next = nuevo nodo
-    mov qword [rax + OFFSET_PREVIOUS], r9      ; nuevo nodo->previous = viejo_last
-    mov qword [rax + OFFSET_NEXT], 0           ; nuevo nodo->next = NULL
-    jmp .end
+    ; Comparar el campo type del nodo actual con el target type (en cl)
+    mov al, byte [rdx + OFFSET_TYPE]
+    cmp al, r12b            ;comparo type de nodo actual con el type param
+    jne .siguienteNodo      ;si son distintos, paso al siguiente
 
-.is_empty:
-    ; ===== Caso lista vacía =====
-    ; Si la lista estaba vacía, entonces asigno el nuevo nodo a ambos campos
-    mov qword [rbx + OFFSET_FIRST], rax
-    mov qword [rbx + OFFSET_LAST], rax
+    ; Si coinciden, concatenamos:
+    ; perparo para llamar a str_concat
+    mov rdi, r13              ; rdi = hash anterior
+    mov rsi, qword [rdx + OFFSET_HASH]  ; rsi = hash del nodo actual
+    call str_concat           ; RAX = nuevo hash concatenado!
 
-.end:
-    add rsp, 8  ; Restaurar la alineación
+    ;str_concat designó memoria nueva para la concatenación, tengo q borrar hash anterior
+    mov rdi, r13
+    call free
+
+    ; Actualizamos el acumulado con el resultado nuevo
+    mov r13, rax
+
+.siguienteNodo:
+    ; Avanzamos al siguiente nodo: el campo next del nodo está en OFFSET_NEXT (0)
+    mov rdx, qword [rdx + OFFSET_NEXT]
+    jmp .recorrido_lista
+
+.fin:
+    ; restauro la alineación del stack
+    add rsp, 8
+
+    ; restauro los registros no volátiles
+    pop r15
+    pop r14
     pop r13
     pop r12
     pop rbx
     pop rbp
-    ret
 
-string_proc_list_concat_asm:
-    ; Parámetros:
-    ;   RDI = list pointer (string_proc_list*)
-    ;   RSI = target type (uint8_t)
-    ;   RDX = initial hash (char*)
-    ;
-    ; Guardamos el puntero de la lista y target type
-    mov r8, rdi         ; r8 = list pointer
-    mov rcx, rsi        ; rcx: target type (comparamos en cl)
-
-    ; Crear el string de resultado inicial: result = str_concat(initial_hash, empty_str)
-    mov rdi, rdx        ; primer argumento: initial hash
-    lea rsi, [rel empty_str]  ; segundo argumento: pointer a cadena vacía
-    call str_concat     ; retorna en RAX
-    mov rbx, rax        ; rbx guarda el string de resultado
-
-    ; Empezamos a recorrer la lista: list->first (primer nodo) se encuentra en [r8]
-    mov rdx, qword [r8] ; rdx = list->first
-
-.traverse:
-    test rdx, rdx
-    je .done_traverse   ; si rdx es NULL, terminamos
-
-    ; Comparar node->type (offset 16) con target type (en cl)
-    mov al, byte [rdx+16]
-    cmp al, cl
-    jne .skip_node
-
-    ; Si coinciden, concatenamos: result_new = str_concat(result, node->hash)
-    mov rdi, rbx           ; rdi = current result
-    mov rsi, qword [rdx+24]  ; rsi = node->hash
-    call str_concat
-    ; Liberamos el result anterior
-    mov rdi, rbx
-    call free
-    ; Actualizamos el resultado con el nuevo string
-    mov rbx, rax
-
-.skip_node:
-    ; Avanzamos al siguiente nodo: node->next se encuentra en [rdx] (offset 0)
-    mov rdx, qword [rdx]
-    jmp .traverse
-
-.done_traverse:
-    mov rax, rbx    ; Retornamos el string final en RAX
+    mov rax, r13         ; hash concatenado se retorna en RAX
     ret

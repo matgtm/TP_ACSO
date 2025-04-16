@@ -51,8 +51,7 @@ char* string_proc_list_concat(string_proc_list* list, uint8_t type , char* hash)
 	if (list == NULL || list->first == NULL){
 		char* res = (char*) malloc(strlen(hash) + 1);
         if (res != NULL)
-            strcpy(res, hash);
-        return res;
+            return hash;
 	}
 
 	// primera pasada para crear memoria

@@ -5,6 +5,7 @@
 
 section .data
 empty_str: db 0    
+dbg_fmt:   db "Debug: list->last = %p", 10, 0
 section .text
 
 global string_proc_list_create_asm
@@ -16,6 +17,7 @@ global string_proc_list_concat_asm
 extern malloc
 extern free
 extern str_concat
+extern printf
 
 
 string_proc_list_create_asm:
@@ -90,7 +92,7 @@ string_proc_list_add_node_asm:
     mov rdi, dbg_fmt       ; formato "Debug: list->last = %p"
     mov rsi, qword [r8+8]   ; rsi = list->last
     call printf       
-    
+
     mov rax, qword [r8+8]   ; muevo last a r9
     mov qword [rax], r9     ; last->next apunta a nodo nuevo
     mov qword [r9+8], rax   ; nuevo nodo->previous apunta a last

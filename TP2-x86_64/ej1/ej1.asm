@@ -196,9 +196,12 @@ string_proc_list_concat_asm:
 
     ; Si coinciden, concatenamos:
     ; perparo para llamar a str_concat
+    mov r14, rdx              ; r14 = nodo actual (pq es no voltatil)
     mov rdi, r13              ; rdi = hash anterior
     mov rsi, qword [rdx + OFFSET_HASH]  ; rsi = hash del nodo actual
     call str_concat           ; RAX = nuevo hash concatenado!
+    mov rdx, r14              ; rdx = nodo actual
+
 
     ;str_concat designó memoria nueva para la concatenación, tengo q borrar hash anterior
     mov rdi, r13

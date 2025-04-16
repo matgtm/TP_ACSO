@@ -149,10 +149,11 @@ string_proc_list_add_node_asm:
 
 
 
-
-; Tengo: puntero a lista en RDI, tipo en RSI (en sil) y puntero a hash en RDX.
+; Tengo: puntero a lista en RDI
+;       tipo en RSI (en sil)
+;       puntero a hash en RDX
 string_proc_list_concat_asm:
-    push rbp                ; Prologo: guardo base pointer
+    push rbp                ; Prologo: guardo rbp
     mov rbp, rsp
     push rbx                ; resguardo registros no volátiles
     push r12
@@ -160,56 +161,67 @@ string_proc_list_concat_asm:
     push r14
     push r15
 
-    sub rsp, 8              ; Alinear la pila a 16 bytes para llamadas externas
+    sub rsp, 8              ; Alineo la pila a 16 bytes para llamar a str_concat
 
-    ; Guardar parámetros:
+    ; Inicializo un contador en R10 en 0 (para saber si ya se hizo una concatenación)
+    xor r10, r10            ; r10 = 0
+
+    ; Parámetros de entrada:
+    ;   RDI = puntero a la lista 
+    ;   RSI = tipo (uint8_t) en sil
+    ;   RDX = puntero a hash (literal inicial)
+    ;
+    ; Saco list/type/hash de RDI/RSI/RDX -> van para rbx, r12b y r13 respectivamente.
     mov rbx, rdi            ; rbx = puntero a la lista
     mov r12b, sil           ; r12b = target type
-    ; Convertir la cadena literal (parámetro inicial en RDX) en una cadena dinámica
-    mov rdi, rdx            ; rdi = initial hash (literal)
-    lea rsi, [rel empty_str] ; rsi = cadena vacía
-    call str_concat         ; nuevo string dinámico en RAX
-    mov rdx, rax            ; rdx = acumulado actual (esto asegura que no intentamos free el literal)
+    ; **Importante:** Inicializo el acumulado con el literal recibido (sin convertirlo)
+    mov r13, rdx            ; r13 = acumulado actual (literal inicial)
 
-    ; Tomar el primer nodo de la lista:
-    mov r8, qword [rbx + OFFSET_FIRST]  ; r8 = list->first
+    ; Primer caso especial: si el puntero a la lista es NULL, termino.
+    cmp rbx, NULL 
+    je .fin
 
-.recorrido:
-    test r8, r8
-    je .finCiclo          ; Si no hay nodo, termino
+    ; Empiezo a recorrer la lista: obtengo list->first
+    mov rdx, qword [rbx + OFFSET_FIRST]   ; rdx = list->first
 
-    ; Comparar el campo type del nodo actual con el target type.
-    mov al, byte [r8 + OFFSET_TYPE]
-    cmp al, r12b          ; Comparo: nodo->type vs target type
-    jne .siguienteNodo    ; Si no coincide, salto
+.recorrido_lista:
+    test rdx, rdx
+    je .fin          ; si rdx es NULL, termino el recorrido
+
+    ; Comparo el campo type del nodo actual con el target type 
+    mov al, byte [rdx + OFFSET_TYPE]
+    cmp al, r12b             ; comparo type del nodo con el parámetro
+    jne .siguienteNodo       ; si son distintos, salto al siguiente
 
 .mismoTipo:
-    ; Resguardar parámetros:
-    ; Guardar el acumulado anterior en r15 para liberarlo después.
-    mov r15, rdx        ; r15 = acumulado viejo
-    ; Guardar el puntero al nodo actual en r14 para restaurarlo.
-    mov r14, r8         ; r14 = nodo actual
+    ; Guardo el nodo actual en la pila para conservar su valor (RDX puede cambiar en la llamada)
+    push rdx               ; rdx = nodo actual guardado en la pila
 
-    ; Preparar llamada a str_concat:
-    mov rdi, rdx              ; rdi = acumulado viejo (por ejemplo, la cadena actual)
-    mov rsi, qword [r8 + OFFSET_HASH]  ; rsi = hash del nodo actual
-    call str_concat           ; RAX = nuevo acumulado concatenado
+    ; Preparo los argumentos para llamar a str_concat:
+    ; Quiero concatenar el acumulado actual (r13) con el hash del nodo actual.
+    mov rdi, r13                ; rdi = acumulado actual
+    mov rsi, qword [rdx + OFFSET_HASH]  ; rsi = hash del nodo actual
+    call str_concat             ; en RAX se obtiene el nuevo acumulado (dinámico)
+    pop rdx                   ; recupero el nodo actual
 
-    ; Actualizo acumulado y libero el anterior:
-    mov rdx, rax            ; rdx = nuevo acumulado
-    mov rdi, r15            ; rdi = acumulado viejo
-    call free               ; libero el acumulado viejo
-
-    ; Restaurar los parámetros para continuar:
-    mov r8, r14            ; r8 = nodo actual (restaurado)
+    ; Liberar el acumulado anterior SOLO si ya se hizo una concatenación previa
+    cmp r10, 0
+    je .noFree                ; si r10 == 0 (primera vez), no libero
+    mov rdi, r13
+    call free
+.noFree:
+    ; Actualizo el acumulado con el nuevo resultado
+    mov r13, rax
+    ; Incremento contador (a partir de la segunda concatenación se liberará)
+    inc r10
 
 .siguienteNodo:
     ; Avanzo al siguiente nodo: leo el campo next (OFFSET_NEXT, que es 0)
-    mov r8, qword [r8 + OFFSET_NEXT]
-    jmp .recorrido
+    mov rdx, qword [rdx + OFFSET_NEXT]
+    jmp .recorrido_lista
 
-.finCiclo:
-    add rsp, 8            ; Restaurar alineación de la pila
+.fin:
+    add rsp, 8              ; Restaurar alineación de la pila
     pop r15
     pop r14
     pop r13
@@ -217,7 +229,7 @@ string_proc_list_concat_asm:
     pop rbx
     pop rbp
 
-    mov rax, rdx          ; Retorno el acumulado final en RAX
+    mov rax, r13            ; Retorno el acumulado final en RAX
     ret
 
 .ret_null:

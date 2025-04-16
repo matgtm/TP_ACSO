@@ -157,7 +157,7 @@ string_proc_list_add_node_asm:
 
 
 
-string_proc_list_concat:
+string_proc_list_concat_asm:
     ; ——— Prologo ———
     push    rbp
     mov     rbp, rsp

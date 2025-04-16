@@ -16,6 +16,8 @@ dbg_first: db "DEBUG: Primer nodo: %p", 10, 0
 dbg_current: db "DEBUG: Nodo actual: %p", 10, 0
 dbg_after: db "DEBUG: Nodo califica para concatenar: type=%d, hash=%s", 10, 0
 
+dbg_type_before: db "DEBUG TYPE BEFORE: nodo->type = %d, target type = %d",10,0
+dbg_type_after:  db "DEBUG TYPE AFTER: nodo->type = %d, target type = %d",10,0
 
 
 
@@ -153,13 +155,12 @@ string_proc_list_add_node_asm:
 
 
 
-
 ; tengo ptr a list en RDI
 ; tengo type en RSI
 ; tengo ptr a hash en RDX
 string_proc_list_concat_asm:
     ; En stack:
-    push rbp           ; alineada
+    push rbp             ; alineada
     mov rbp, rsp
     push rbx       
     push r12        
@@ -172,78 +173,81 @@ string_proc_list_concat_asm:
 
     ; params de entrada:
     ;   RDI = puntero a la lista 
-    ;   RSI = type (uint8_t) (en sil)
+    ;   RSI = type (uint8_t) 
     ;   RDX = puntero a hash
     ;
     ; Saco list/type/hash de RDI/RSI/RDX -> van para rbx/r12b/r13
-    mov rbx, rdi              ; rbx = puntero a lista
-    mov r12b, sil             ; r12b = target type
-    mov r13, rdx              ; r13 = initial hash ptr
+    mov rbx, rdi             ; rbx = puntero a lista
+    mov r12b, sil            ; r12b = type
+    mov r13, rdx             ; r13 = hash ptr
 
     ; Primera concatenacion: hash actual + nada (asi puedo liberar memoria en recorrido)
-    mov rdi, rdx              ; primer argumento: initial hash
-    lea rsi, [rel empty_str]  ; segundo argumento: ptr a cadena vacía
-    call str_concat           ; devuelve el nuevo string en RAX
-    mov r13, rax              ; r13 = acumulado inicial
+    mov rdi, rdx             ; primer argumento: initial hash
+    lea rsi, [rel empty_str] ; segundo argumento: ptr a cadena vacía
+    call str_concat          ; devuelve el nuevo string en RAX
+    mov r13, rax             ; r13 = ptr a hash 'concatenado'
 
-    ; Debug print: imprimir el primer nodo (list->first)
-    mov rdx, qword [rbx + OFFSET_FIRST]   ; rdx = list->first
-    mov rdi, dbg_first
-    mov rsi, rdx
-    call printf
-
-    ; Primer caso especial: si ptr a lista es NULL, salgo
-    cmp rbx, NULL
+    ; Primer caso especial: si ptr a list es NULL
+    cmp rbx, NULL 
     je .fin
 
-    ; Empiezo a recorrer la lista: obtengo list->first
+    ; Empiezo a recorrer la lista: list->first
     mov rdx, qword [rbx + OFFSET_FIRST]   ; rdx = list->first
 
 .recorrido_lista:
     test rdx, rdx
     je .fin          ; si rdx es NULL, termino el recorrido
 
-    ; Debug print: imprimir nodo actual antes de comparar
-    mov rdi, dbg_current
-    mov rsi, rdx
+    ; --- Debug: imprimir el nodo actual antes de comparar ---
+    ; Imprime: "DEBUG: Nodo actual: %p" (tus prints anteriores ya lo hacen)
+    ; Ahora, adicional: imprimir el type del nodo y el target type
+    push r10
+    mov r10, rdx                     ; r10 = nodo actual
+    mov rdi, dbg_type_before         ; formato: "DEBUG TYPE BEFORE: nodo->type = %d, target type = %d",10,0
+    movzx rsi, byte [r10 + OFFSET_TYPE]  ; node type (extender a 32 bits)
+    movzx rdx, r12b                 ; target type
     call printf
+    pop r10
+    ; Fin de debug antes de cmp
 
     ; Comparar el campo type del nodo actual con el target type 
-    mov al, byte [rdx + OFFSET_TYPE]
-    cmp al, r12b            ; comparo type del nodo con el parámetro
-    jne .siguienteNodo      ; si son distintos, salto
+    mov al, byte [rdx + OFFSET_TYPE]  ; rdx es el nodo actual
+    cmp al, r12b                    ; comparo type de nodo actual con el type param
 
-    ; Debug print: imprimir nodo que califica para concatenar
-    ; Se imprime el type y el hash del nodo:
-    movzx rax, byte [rdx + OFFSET_TYPE]
-    mov rdi, dbg_after
-    mov rsi, rax            ; el type ampliado (como entero)
-    mov rdx, qword [rdx + OFFSET_HASH]  ; el hash del nodo
+    ; --- Debug: imprimir después de la comparación ---
+    push r10
+    mov r10, rdx                    ; r10 = nodo actual
+    mov rdi, dbg_type_after         ; formato: "DEBUG TYPE AFTER: nodo->type = %d, target type = %d",10,0
+    movzx rsi, byte [r10 + OFFSET_TYPE]
+    movzx rdx, r12b
     call printf
+    pop r10
+    ; Fin de debug después del cmp
 
-    ; Si coincide, concatenamos:
-    ; Uso push/pop para preservar el puntero actual (en RDX)
-    push rdx              ; guardo el puntero al nodo actual
-    mov rdi, r13          ; rdi = acumulado actual
-    ; Recupero el nodo actual en rdx (sin modificarlo)
-    pop rdx
+    jne .siguienteNodo      ; si son distintos, paso al siguiente
+
+    ; Si coinciden, concatenamos:
+    ; preparo para llamar a str_concat
+    push rdx              ; guardo el nodo actual (para preservar RDX)
+    mov rdi, r13          ; rdi = hash anterior
     mov rsi, qword [rdx + OFFSET_HASH]  ; rsi = hash del nodo actual
-    call str_concat       ; RAX = nuevo acumulado concatenado
+    call str_concat       ; RAX = nuevo hash concatenado!
+    pop rdx               ; recupero el nodo actual
 
-    ; Actualizo el acumulado:
+    ; Actualizamos el acumulado con el resultado nuevo
     mov r15, r13
     mov r13, rax
-    ; Liberar acumulado anterior
+    ; str_concat designó memoria nueva para la concatenación, tengo q borrar hash anterior
     mov rdi, r15
     call free
 
 .siguienteNodo:
-    ; Avanzamos al siguiente nodo: el campo next del nodo actual está en OFFSET_NEXT (0)
+    ; Avanzamos al siguiente nodo: el campo next del nodo está en OFFSET_NEXT (0)
     mov rdx, qword [rdx + OFFSET_NEXT]
     jmp .recorrido_lista
 
 .fin:
-    add rsp, 8          ; restaurar alineación del stack
+    add rsp, 8             ; restauro la alineación del stack
     pop r15
     pop r14
     pop r13
@@ -251,7 +255,7 @@ string_proc_list_concat_asm:
     pop rbx
     pop rbp
 
-    mov rax, r13        ; retorno el acumulado final en RAX
+    mov rax, r13           ; hash concatenado se retorna en RAX
     ret
 
 .ret_null:

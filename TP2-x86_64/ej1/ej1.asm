@@ -175,24 +175,31 @@ string_proc_list_concat_asm:
     jne .siguienteNodo
 
 .mismoTipo:
-    ; Guardo los parámetros de entrada y el puntero de iteración
-    mov r12, rdi   ; r12 = puntero a la lista
-    mov r13b, sil  ; r13b = tipo (1 byte)
-    mov r14, rdx   ; r14 = puntero a hash (acumulado actual)
-    mov r15, r8    ; r15 = nodo actual (para poder restaurarlo luego)
+    ; resguardamos los parámetros de entrada (rdi, sil y rdx) y el que estamos usando para avanzar (R8)
+    mov r12, rdi        ; r12 = lista
+    mov r13b, sil       ; r13b = target type
+    mov r14, rdx        ; r14 = acumulado anterior (hash)
+    mov r15, R8         ; r15 = nodo actual (que estamos recorriendo)
 
-    ; Preparo los argumentos para llamar a str_concat:
-    ; Quiero concatenar el acumulado actual (rdx) con el hash del nodo actual.
-    mov rdi, rdx               ; rdi = acumulado actual (hash que se pasó)
-    mov rsi, [r8 + OFFSET_HASH]  ; rsi = hash del nodo actual 
-    call str_concat            ; Llama a str_concat, el resultado (nuevo acumulado) queda en RAX
-    mov r14, rax               ; Actualizo el acumulado (r14) con el nuevo hash concatenado
+    ; Preparamos la llamada a str_concat:
+    mov rdi, rdx               ; rdi = acumulado anterior (hash) -- RDX no se modifica aquí aún
+    mov rsi, [R8 + OFFSET_HASH]; rsi = hash del nodo actual
+    call str_concat            ; nuevo acumulado en RAX
 
-    ; Restaura los parámetros originales
-    mov rdi, r12             ; rdi vuelve a ser el puntero a la lista
-    mov sil, r13b            ; r13b vuelve a ser el tipo pasado
-    mov rdx, r14             ; rdx = nuevo acumulado
-    mov r8, r15             ; r8 se restaura al nodo actual
+    ; Liberamos el acumulado anterior
+    mov rdi, r14
+    call free
+
+    ; Actualizamos el acumulado
+    mov r14, rax             ; r14 = nuevo acumulado (opcional, si querés preservarlo)
+    mov rdx, r15             ; restauramos nodo actual en RDX
+
+    ; Restauramos parámetros originales para continuar
+    mov rdi, r12
+    mov sil, r13b
+    mov rdx, r14             ; Ahora, usamos r14 como acumulado actualizado
+
+    ; Luego, en el bloque de avance, se hará la actualización de rdx con el siguiente nodo...
 
 .siguienteNodo:
     ; Avanzo al siguiente nodo: leo el campo next (OFFSET_NEXT, que es 0)

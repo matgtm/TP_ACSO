@@ -12,12 +12,7 @@
 
 section .data
 empty_str: db 0    
-dbg_first: db "DEBUG: Primer nodo: %p", 10, 0
-dbg_current: db "DEBUG: Nodo actual: %p", 10, 0
-dbg_after: db "DEBUG: Nodo califica para concatenar: type=%d, hash=%s", 10, 0
 
-dbg_type_before: db "DEBUG TYPE BEFORE: nodo->type = %d, target type = %d",10,0
-dbg_type_after:  db "DEBUG TYPE AFTER: nodo->type = %d, target type = %d",10,0
 
 
 
@@ -155,115 +150,60 @@ string_proc_list_add_node_asm:
 
 
 
-; tengo ptr a list en RDI
-; tengo type en RSI
-; tengo ptr a hash en RDX
+
+
+; Tengo: puntero a lista en RDI, tipo en RSI (en sil) y puntero a hash en RDX.
 string_proc_list_concat_asm:
-    ; En stack:
-    push rbp             ; alineada
-    mov rbp, rsp
-    push rbx       
-    push r12        
-    push r13       
-    push r14        
-    push r15      
 
-    ; Alineo la pila a 16 bytes para la llamada a str_concat 
-    sub rsp, 8
+    push rbp                ; Guardo el base pointer
+    mov rbp, rsp            ; Establezco mi frame de pila
 
-    ; params de entrada:
-    ;   RDI = puntero a la lista 
-    ;   RSI = type (uint8_t) 
-    ;   RDX = puntero a hash
-    ;
-    ; Saco list/type/hash de RDI/RSI/RDX -> van para rbx/r12b/r13
-    mov rbx, rdi             ; rbx = puntero a lista
-    mov r12b, sil            ; r12b = type
-    mov r13, rdx             ; r13 = hash ptr
+    push r12                ; Resguardo registros no volátiles que voy a usar para llamar a str_concat
+    push r13
+    push r14
+    push r15
 
-    ; Primera concatenacion: hash actual + nada (asi puedo liberar memoria en recorrido)
-    mov rdi, rdx             ; primer argumento: initial hash
-    lea rsi, [rel empty_str] ; segundo argumento: ptr a cadena vacía
-    call str_concat          ; devuelve el nuevo string en RAX
-    mov r13, rax             ; r13 = ptr a hash 'concatenado'
+    ; Tomo el primer nodo de la lista para iterar.
+    mov r8, [rdi + OFFSET_FIRST]  ; r8 = primer nodo
 
-    ; Primer caso especial: si ptr a list es NULL
-    cmp rbx, NULL 
-    je .fin
+.ciclo:
+    cmp r8, NULL            ; Si r8 es NULL, ya no hay nodos y termino el ciclo.
+    je .finCiclo
+    ; Comparo el tipo del nodo actual con el tipo pasado en sil.
+    cmp [r8 + OFFSET_TYPE], sil
+    je .mismoTipo
+    jne .siguienteNodo
 
-    ; Empiezo a recorrer la lista: list->first
-    mov rdx, qword [rbx + OFFSET_FIRST]   ; rdx = list->first
+.mismoTipo:
+    ; Guardo los parámetros de entrada y el puntero de iteración
+    mov r12, rdi   ; r12 = puntero a la lista
+    mov r13b, sil  ; r13b = tipo (1 byte)
+    mov r14, rdx   ; r14 = puntero a hash (acumulado actual)
+    mov r15, r8    ; r15 = nodo actual (para poder restaurarlo luego)
 
-.recorrido_lista:
-    test rdx, rdx
-    je .fin          ; si rdx es NULL, termino el recorrido
+    ; Preparo los argumentos para llamar a str_concat:
+    ; Quiero concatenar el acumulado actual (rdx) con el hash del nodo actual.
+    mov rdi, rdx               ; rdi = acumulado actual (hash que se pasó)
+    mov rsi, [r8 + OFFSET_HASH]  ; rsi = hash del nodo actual 
+    call str_concat            ; Llama a str_concat, el resultado (nuevo acumulado) queda en RAX
+    mov r14, rax               ; Actualizo el acumulado (r14) con el nuevo hash concatenado
 
-    ; --- Debug: imprimir el nodo actual antes de comparar ---
-    ; Imprime: "DEBUG: Nodo actual: %p" (tus prints anteriores ya lo hacen)
-    ; Ahora, adicional: imprimir el type del nodo y el target type
-    push r10
-    mov r10, rdx                     ; r10 = nodo actual
-    mov rdi, dbg_type_before         ; formato: "DEBUG TYPE BEFORE: nodo->type = %d, target type = %d",10,0
-    movzx rsi, byte [r10 + OFFSET_TYPE]  ; node type (extender a 32 bits)
-    movzx rdx, r12b                 ; target type
-    call printf
-    pop r10
-    ; Fin de debug antes de cmp
-
-    ; Comparar el campo type del nodo actual con el target type 
-    mov al, byte [rdx + OFFSET_TYPE]  ; rdx es el nodo actual
-    cmp al, r12b                    ; comparo type de nodo actual con el type param
-
-    ; --- Debug: imprimir después de la comparación ---
-    push r10
-    mov r10, rdx                    ; r10 = nodo actual
-    mov rdi, dbg_type_after         ; formato: "DEBUG TYPE AFTER: nodo->type = %d, target type = %d",10,0
-    movzx rsi, byte [r10 + OFFSET_TYPE]
-    movzx rdx, r12b
-    call printf
-    pop r10
-    ; Fin de debug después del cmp
-
-    jne .siguienteNodo      ; si son distintos, paso al siguiente
-
-    ; Si coinciden, concatenamos:
-    ; preparo para llamar a str_concat
-    push rdx              ; guardo el nodo actual (para preservar RDX)
-    mov rdi, r13          ; rdi = hash anterior
-    mov rsi, qword [rdx + OFFSET_HASH]  ; rsi = hash del nodo actual
-    call str_concat       ; RAX = nuevo hash concatenado!
-    pop rdx               ; recupero el nodo actual
-
-    ; Actualizamos el acumulado con el resultado nuevo
-    mov r15, r13
-    mov r13, rax
-    ; str_concat designó memoria nueva para la concatenación, tengo q borrar hash anterior
-    mov rdi, r15
-    call free
+    ; Restaura los parámetros originales
+    mov rdi, r12             ; rdi vuelve a ser el puntero a la lista
+    mov sil, r13b            ; r13b vuelve a ser el tipo pasado
+    mov rdx, r14             ; rdx = nuevo acumulado
+    mov r8, r15             ; r8 se restaura al nodo actual
 
 .siguienteNodo:
-    ; Avanzamos al siguiente nodo: el campo next del nodo está en OFFSET_NEXT (0)
-    mov rdx, qword [rdx + OFFSET_NEXT]
-    jmp .recorrido_lista
+    ; Avanzo al siguiente nodo: leo el campo next (OFFSET_NEXT, que es 0)
+    mov r8, [r8 + OFFSET_NEXT] ; r8 = dirección del siguiente nodo
+    jmp .ciclo
 
-.fin:
-    add rsp, 8             ; restauro la alineación del stack
+.finCiclo:
+    mov rax, rdx           ; Coloco el acumulado final en RAX para retornar
     pop r15
     pop r14
     pop r13
     pop r12
-    pop rbx
-    pop rbp
-
-    mov rax, r13           ; hash concatenado se retorna en RAX
-    ret
-
-.ret_null:
-    add rsp, 8
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
     pop rbp
     ret

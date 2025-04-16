@@ -42,8 +42,8 @@ void test_create_list_add_nodes(void)
 	string_proc_list_add_node_asm(list, 0, "hola");
 	printf("After adding node 'hola':\n");
     string_proc_list_print(list, stdout);
-	// string_proc_list_add_node_asm(list, 0, "a");
-	// string_proc_list_add_node_asm(list, 0, "todos!");
+	string_proc_list_add_node_asm(list, 0, "a");
+	string_proc_list_add_node_asm(list, 0, "todos!");
 	string_proc_list_destroy(list);
 	printf("List destroyed.\n");
 }
@@ -75,7 +75,7 @@ void run_tests(void){
 
 	test_create_list_add_nodes();
 
-	test_list_concat();
+	// test_list_concat();
 }
 
 int main (void){

@@ -153,7 +153,6 @@ string_proc_list_add_node_asm:
     ret
 
 
-
 ; tengo ptr a list en RDI
 ; tengo type en RSI
 ; tengo ptr a hash en RDX
@@ -181,16 +180,16 @@ string_proc_list_concat_asm:
     mov r13, rdx             ; r13 = hash ptr
 
     ; Primera concatenacion: hash actual + nada (asi puedo liberar memoria en recorrido)
-    mov rdi, r13            ; primer argumento: initial hash
-    lea rsi, [rel empty_str]  ; segundo argumento: ptr a cadena vacía
-    call str_concat         ; devuelve el nuevo string en RAX
-    mov r13, rax            ; r13 = ptr a hash 'concatenado'
+    mov rdi, rdx             ; primer argumento: initial hash
+    lea rsi, [rel empty_str] ; segundo argumento: ptr a cadena vacía
+    call str_concat          ; devuelve el nuevo string en RAX
+    mov r13, rax             ; r13 = ptr a hash 'concatenado'
 
     ; Primer caso especial: si ptr a list es NULL
     cmp rbx, NULL 
     je .fin
 
-    ;Segundo caso especial: lista es vacia -> lo chequeo en ciclo con current == NULL
+    ; Segundo caso especial: lista es vacia -> lo chequeo en ciclo con current == NULL
 
     ; empiezo a recorrer la lista: list->first
     mov rdx, qword [rbx + OFFSET_FIRST]   ; rdx = list->first
@@ -201,26 +200,23 @@ string_proc_list_concat_asm:
 
     ; Comparar el campo type del nodo actual con el target type 
     mov al, byte [rdx + OFFSET_TYPE]
-    cmp al, r12b            ;comparo type de nodo actual con el type param
-    jne .siguienteNodo      ;si son distintos, paso al siguiente
+    cmp al, r12b            ; comparo type de nodo actual con el type param
+    jne .siguienteNodo      ; si son distintos, paso al siguiente
 
     ; Si coinciden, concatenamos:
-    ; perparo para llamar a str_concat
-    mov r14, rdx              ; r14 = nodo actual (pq es no voltatil)
+    ; preparo para llamar a str_concat
+    push rdx                  ; guardo el nodo actual en la pila (para no perderlo)
     mov rdi, r13              ; rdi = hash anterior
     mov rsi, qword [rdx + OFFSET_HASH]  ; rsi = hash del nodo actual
     call str_concat           ; RAX = nuevo hash concatenado!
-    mov rdx, r14              ; rdx = nodo actual
+    pop rdx                   ; recupero el nodo actual (restaurado)
 
     ; Actualizamos el acumulado con el resultado nuevo
     mov r15, r13
     mov r13, rax
-    ;str_concat designó memoria nueva para la concatenación, tengo q borrar hash anterior
+    ; str_concat designó memoria nueva para la concatenación, tengo q borrar hash anterior
     mov rdi, r15
     call free
-
-
-    
 
 .siguienteNodo:
     ; Avanzamos al siguiente nodo: el campo next del nodo está en OFFSET_NEXT (0)
@@ -240,4 +236,14 @@ string_proc_list_concat_asm:
     pop rbp
 
     mov rax, r13         ; hash concatenado se retorna en RAX
+    ret
+
+.ret_null:
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
     ret

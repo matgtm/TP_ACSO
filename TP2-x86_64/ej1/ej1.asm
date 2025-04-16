@@ -16,6 +16,8 @@ empty_str: db 0
 dbg_format: db "Nodo actual: %p, type: %d, hash: %s", 10, 0
 dbg_line:   db "-------------------------", 10, 0
 dbg_next: db "Siguiente nodo: %p", 10, 0
+dbg_acum: db "Nuevo acumulado: %p, cadena: %s", 10, 0
+
 
 
 

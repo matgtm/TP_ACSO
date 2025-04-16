@@ -153,51 +153,61 @@ string_proc_list_add_node_asm:
 
 
 
-
-
-; RDI = lista*, RSI = type (sil), RDX = hash_inicial*
+global string_proc_list_concat_asm
 string_proc_list_concat_asm:
+    ; ——— Prólogo ———
     push rbp
     mov  rbp, rsp
     push rbx
-    push r12             ; r12b guardará el tipo
-    push r13             ; acumulador dinámico
-    sub  rsp, 8          ; mantener alineación
+    push r12
+    push r13
+    push r14
+    sub  rsp, 8             ; alinear a 16 bytes para llamadas ABI
 
-    ;--- parámetros fijos
-    mov  rbx, rdi        ; lista
-    mov  r12b, sil       ; type (NO se tocará más)
-    mov  rdi, rdx
+    ; ——— Cargo parámetros ———
+    mov  rbx, rdi           ; rbx = ptr a lista
+    mov  r12b, sil          ; r12b = type objetivo
+
+    ; —— 1) Inicializo acumulador dinámico ——
+    mov  rdi, rdx           ; rdi = ptr al hash literal
     lea  rsi, [rel empty_str]
-    call str_concat      ; copia dinámica de hash_inicial
-    mov  r13, rax        ; r13 = acumulador
+    call str_concat         ; RAX = malloc(hash)
+    mov  r13, rax           ; r13 = acumulador dinámico
 
-    ;--- recorrido
+    ; —— 2) Si la lista es NULL, salto al epílogo ——
+    cmp  rbx, 0
+    je   .done
+
+    ; —— 3) Bucle: recorro cada nodo ——
     mov  r8, [rbx + OFFSET_FIRST]
 .loop:
     test r8, r8
     je   .done
+    cmp  byte [r8 + OFFSET_TYPE], r12b
+    jne  .skip
 
-    cmp  byte [r8 + OFFSET_TYPE], r12b ; usar registro no‑volátil
-    jne  .next
+    ; —— Coincide el tipo: concateno nodo->hash ——
+    mov  rdi, r13                ; acumulador previo
+    mov  rsi, [r8 + OFFSET_HASH] ; hash del nodo
+    call str_concat              ; RAX = malloc(nuevo concatenado)
+    mov  r14, rax                ; guardo temporalmente
 
-    ; --- concat y free de bloque viejo ---
-    mov  rdi, r13
-    mov  rsi, [r8 + OFFSET_HASH]
-    call str_concat
+    ; libero el bloque viejo y actualizo acumulador
     mov  rdi, r13
     call free
-    mov  r13, rax
+    mov  r13, r14
 
-.next:
+.skip:
     mov  r8, [r8 + OFFSET_NEXT]
     jmp  .loop
 
+    ; —— Epílogo ——
 .done:
+    mov  rax, r13
     add  rsp, 8
+    pop  r14
     pop  r13
     pop  r12
     pop  rbx
     pop  rbp
-    mov  rax, r13        ; devolver acumulado
     ret

@@ -151,53 +151,65 @@ string_proc_list_add_node_asm:
 
 
 
-; RDI = ptr a la lista, RSI = tipo (sil), RDX = ptr al hash inicial (literal)
+
+
+
+
+
+
+
+
+; RDI = ptr lista, RSI = tipo (sil), RDX = ptr al hash inicial (literal)
 string_proc_list_concat_asm:
     ; ——— Prólogo ———
     push rbp
     mov  rbp, rsp
     push rbx                ; salvo rbx y r12 (no‑volátiles)
     push r12
-    sub  rsp, 8             ; alineo a 16 bytes antes de cualquier call
+    sub  rsp, 8             ; alineo a 16 bytes para ABI
 
-    ; ——— Guardar parámetros ———
-    mov  rbx, rdi           ; rbx = ptr lista
+    ; ——— Guardo los parámetros básicos ———
+    mov  rbx, rdi           ; rbx = puntero a la lista
     mov  r12b, sil          ; r12b = target type
 
-    ; ——— Init dinámico (copio literal) ———
-    mov  rdi, rdx           ; rdi = literal inicial
+    ; ——— Inicializo acumulado dinámico ———
+    ; *Antes* de cambiar RDI: copio el literal inicial en malloc’ed
+    mov  rdi, rdx
     lea  rsi, [rel empty_str]
-    call str_concat         ; RAX = malloc+strcpy(literal)
-    mov  rdx, rax           ; rdx = acumulado dinámico
+    call str_concat         ; RAX = copia malloc’d de “hash”
+    mov  rdx, rax           ; rdx = acumulado (siempre dinámico)
 
-    ; ——— Empiezo a recorrer la lista ———
-    mov  r8, [rbx + OFFSET_FIRST]   ; r8 = primer nodo
+    ; ——— Recorro la lista ———
+    mov  r8, [rbx + OFFSET_FIRST]  ; r8 = primer nodo
 
 .loop:
     test r8, r8
-    je   .done               ; fin si llegué al final
+    je   .done             ; si terminé, salgo
 
+    ; ¿Este nodo coincide en tipo?
     cmp  byte [r8 + OFFSET_TYPE], sil
-    jne  .next_node          ; si no coincide el tipo, salto
+    jne  .next_node
 
     ; ——— Coincide: concateno nodo->hash al acumulado ———
-    mov  rdi, rdx           ; rdi = acumulado viejo
+    mov  rdi, rdx               ; rdi = acumulado viejo
     mov  rsi, [r8 + OFFSET_HASH] ; rsi = hash del nodo
-    call str_concat         ; RAX = nuevo acumulado mallocado
+    call str_concat             ; RAX = nuevo acumulado malloc’d
 
-    mov  r9,  rax           ; r9 = puntero al acumulado nuevo
-    mov  rdi, rdx           ; rdi = acumulado viejo
-    call free               ; libero acumulado anterior
-    mov  rdx, r9            ; rdx = acumulado actualizado
+    ; libero el viejo
+    mov  rdi, rdx
+    call free
+
+    mov  rdx, rax               ; rdx = acumulado actualizado
 
 .next_node:
-    mov  r8, [r8 + OFFSET_NEXT]  ; avanzo al siguiente nodo
+    mov  r8, [r8 + OFFSET_NEXT] ; avanzo al siguiente nodo
     jmp  .loop
 
 .done:
-    mov  rax, rdx           ; devuelvo acumulado final en RAX
+    ; ——— Epílogo ———
+    mov  rax, rdx               ; devuelvo acumulado final
 
-    add  rsp, 8             ; deshago alineación
+    add  rsp, 8                 ; deshago alineación
     pop  r12
     pop  rbx
     pop  rbp

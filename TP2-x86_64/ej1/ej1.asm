@@ -12,7 +12,11 @@
 
 section .data
 empty_str: db 0    
+null_ptr dq 0
 
+section .text
+    global string_proc_list_concat
+    extern malloc, strlen, strcpy, strcat, free
 
 
 
@@ -29,7 +33,7 @@ extern malloc
 extern free
 extern str_concat
 extern printf
-
+extern strlen, strcpy, strcat
 
 string_proc_list_create_asm:
     sub rsp, 8
@@ -153,61 +157,109 @@ string_proc_list_add_node_asm:
 
 
 
-global string_proc_list_concat_asm
-string_proc_list_concat_asm:
-    ; ——— Prólogo ———
-    push rbp
-    mov  rbp, rsp
-    push rbx
-    push r12
-    push r13
-    push r14
-    sub  rsp, 8             ; alinear a 16 bytes para llamadas ABI
+string_proc_list_concat:
+    ; ——— Prologo ———
+    push    rbp
+    mov     rbp, rsp
+    push    rbx
+    push    r12
+    push    r13
+    push    r14
+    push    r15
+    sub     rsp, 8              ; alinear stack para llamadas C
 
-    ; ——— Cargo parámetros ———
-    mov  rbx, rdi           ; rbx = ptr a lista
-    mov  r12b, sil          ; r12b = type objetivo
+    ; ——— Preservo parámetros ———
+    mov     rbx, rdi            ; rbx = ptr a lista
+    mov     r12b, sil           ; r12b = type
+    mov     r13, rdx            ; r13 = ptr al hash inicial
 
-    ; —— 1) Inicializo acumulador dinámico ——
-    mov  rdi, rdx           ; rdi = ptr al hash literal
-    lea  rsi, [rel empty_str]
-    call str_concat         ; RAX = malloc(hash)
-    mov  r13, rax           ; r13 = acumulador dinámico
+    ; ——— Casos rápidos: lista NULL o vacía ———
+    test    rbx, rbx
+    je      .return_hash
+    mov     r14, [rbx + OFFSET_FIRST]
+    test    r14, r14
+    je      .return_hash
 
-    ; —— 2) Si la lista es NULL, salto al epílogo ——
-    cmp  rbx, 0
-    je   .done
+    ; ——— Primera pasada: calcular longitud total ———
+    mov     rdi, r13            ; arg: ptr a hash inicial
+    call    strlen              ; rax = strlen(hash)
+    mov     r8, rax             ; r8 = longitud acumulada
 
-    ; —— 3) Bucle: recorro cada nodo ——
-    mov  r8, [rbx + OFFSET_FIRST]
-.loop:
-    test r8, r8
-    je   .done
-    cmp  byte [r8 + OFFSET_TYPE], r12b
-    jne  .skip
+    mov     r14, [rbx + OFFSET_FIRST]
+.first_pass:
+    test    r14, r14
+    je      .alloc
+    movzx   rax, byte [r14 + OFFSET_TYPE]
+    cmp     al, r12b
+    jne     .skip1
+    mov     rdi, [r14 + OFFSET_HASH]
+    call    strlen
+    add     r8, rax
+.skip1:
+    mov     r14, [r14 + OFFSET_NEXT]
+    jmp     .first_pass
 
-    ; —— Coincide el tipo: concateno nodo->hash ——
-    mov  rdi, r13                ; acumulador previo
-    mov  rsi, [r8 + OFFSET_HASH] ; hash del nodo
-    call str_concat              ; RAX = malloc(nuevo concatenado)
-    mov  r14, rax                ; guardo temporalmente
+    ; ——— Reservar buffer y copiar hash inicial ———
+.alloc:
+    inc     r8                 ; +1 para '\0'
+    mov     rdi, r8            ; tamaño
+    call    malloc
+    test    rax, rax
+    je      .return_null
+    mov     r15, rax           ; r15 = ptr al buffer malloc’d
 
-    ; libero el bloque viejo y actualizo acumulador
-    mov  rdi, r13
-    call free
-    mov  r13, r14
+    ; strcpy(destino, fuente)
+    mov     rdi, r15           ; dest = buffer
+    mov     rsi, r13           ; src  = hash inicial
+    call    strcpy
 
-.skip:
-    mov  r8, [r8 + OFFSET_NEXT]
-    jmp  .loop
+    ; ——— Segunda pasada: strcat de cada hash de nodo ———
+    mov     r14, [rbx + OFFSET_FIRST]
+.second_pass:
+    test    r14, r14
+    je      .done
+    movzx   rax, byte [r14 + OFFSET_TYPE]
+    cmp     al, r12b
+    jne     .skip2
+    ; strcat(destino, src)
+    mov     rdi, r15           ; dest = buffer
+    mov     rsi, [r14 + OFFSET_HASH]
+    call    strcat
+.skip2:
+    mov     r14, [r14 + OFFSET_NEXT]
+    jmp     .second_pass
 
-    ; —— Epílogo ——
+    ; ——— Epílogo: devolver buffer ———
 .done:
-    mov  rax, r13
-    add  rsp, 8
-    pop  r14
-    pop  r13
-    pop  r12
-    pop  rbx
-    pop  rbp
+    mov     rax, r15           ; rax = buffer concatenado
+    add     rsp, 8
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     rbx
+    pop     rbp
+    ret
+
+    ; ——— Rutas de retorno cortas ———
+.return_hash:
+    mov     rax, r13           ; rax = hash inicial
+    add     rsp, 8
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     rbx
+    pop     rbp
+    ret
+
+.return_null:
+    mov     rax, 0             ; NULL
+    add     rsp, 8
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     rbx
+    pop     rbp
     ret

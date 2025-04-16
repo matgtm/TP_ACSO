@@ -70,6 +70,80 @@ string_proc_node_create_asm:
     ret
 
 
+
+string_proc_list_add_node_asm:
+    ; ===== Prologo =====
+    ; Uso stack para preservar valores qu dsp hay que restaurar
+    ; acomodo bp y sp
+    push rbp
+    mov rbp, rsp
+
+     ; Guardo registros no volátiles en stack para devolver al terminar funcion
+    push rbx
+    push r12   
+    push r13
+
+    ; Alineo la pila a 16 bytes
+    sub rsp, 8  
+
+    ; Guardo params
+    ; RDI: pointer a la lista -> guardo en rbx
+    ; RSI: type              -> guardo en r12
+    ; RDX: hash pointer      -> guardo en r13
+    mov rbx, rdi    ; rdx tiene lista
+    mov r12, rsi    ; r12 tiene type  
+    mov r13, rdx    ; r13 tiene hash
+    
+     
+    ; ===== Llamar a string_proc_node_create_asm =====
+    ; Preparo la llamada: necesito que en RDI esté type y en RSI el hash
+    mov rdi, r12      ; pasa type 
+    mov rsi, r13      ; pasa hash
+    call string_proc_node_create_asm  ; entra nuevo nodo a RAX
+
+    ; chequeo que haya creado algo
+    test rax, rax
+    je .end          ; Si RAX es NULL, no hago nada más
+
+    ; ===== Obtengo el puntero de list->last =====
+    ; Queremos actualizar el campo last de la lista; ese campo se encuentra en
+    ; el offset OFFSET_LAST (8) de la estructura de la lista.
+    mov r8, rbx     ; r8 = lista
+    add r8, OFFSET_LAST  ; r8 apunta a list->last
+
+    ; ===== Guardar el viejo último nodo =====
+    mov r9, qword [r8]   ; r9 = *list->last
+
+    cmp r9, NULL
+    je .is_empty      ; Si list->last es NULL, la lista estaba vacía
+
+    ; ===== Caso lista no vacía =====
+    ; Actualizo: 
+    ;   list->last = nuevo nodo (RAX)
+    ;   viejo_last->next = nuevo nodo
+    ;   nuevo nodo->previous = viejo_last
+    ;   nuevo nodo->next = NULL
+    mov qword [r8], rax                      ; list->last = nuevo nodo
+    mov qword [r9 + OFFSET_NEXT], rax        ; viejo_last->next = nuevo nodo
+    mov qword [rax + OFFSET_PREVIOUS], r9      ; nuevo nodo->previous = viejo_last
+    mov qword [rax + OFFSET_NEXT], 0           ; nuevo nodo->next = NULL
+    jmp .end
+
+.is_empty:
+    ; ===== Caso lista vacía =====
+    ; Si la lista estaba vacía, entonces asigno el nuevo nodo a ambos campos
+    mov qword [rbx + OFFSET_FIRST], rax
+    mov qword [rbx + OFFSET_LAST], rax
+
+.end:
+    add rsp, 8  ; Restaurar la alineación
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+
 ; tengo ptr a list en RDI
 ; tengo type en RSI
 ; tengo ptr a hash en RDX

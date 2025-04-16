@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <stdbool.h>
 
-#define USE_ASM_IMPL 1
+#define USE_ASM_IMPL 0
 
 #if USE_ASM_IMPL
   #define string_proc_list_create   string_proc_list_create_asm

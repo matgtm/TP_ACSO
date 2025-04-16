@@ -195,7 +195,7 @@ string_proc_list_concat_asm:
     mov rdx, qword [rbx + OFFSET_FIRST]   ; rdx = list->first
 
 .recorrido_lista:
-    test rdx, rdx
+    cmp rdx, NULL
     je .fin          ; si rdx es NULL, termino el recorrido
 
     ; --- Debug: imprimir antes de comparar ---

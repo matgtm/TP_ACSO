@@ -1,0 +1,23 @@
+Fase 1:
+ Busqué phase_1 y bomb_explode, vi que se cargaba algo a rsi, después hacía una comparación con el input de la función. Vi que en rsi está la clave.
+
+
+Fase 2:
+-> veo que toma dos números A B
+-> llama a misterio(A+B-32, A, B)
+en misterio:
+-> cuenta bits de A+B-32 -> tienen que ser 11
+-> signos de A y B deben ser distintos
+-> sistema de ecs con dos condiciones
+
+
+Fase 3:
+->  phase_3 espera un string y un número tipo “palabra X” 
+-> readlines lee algo que no le doy -> parado en 0x401fc7 cambian palabras de $rsi 
+-> hay algo con una palabra, un índice de array, y una cuenta 
+-> sospecho que input debe ser X = cuenta(índice(palabra))
+-> cuenta no importa lo que hace -> me paro en 0x402081 y veo qué devuelve en RAX con el input que probé
+-> esa es la palabra y número 
+
+
+

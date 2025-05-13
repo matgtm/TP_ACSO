@@ -31,7 +31,7 @@ int directory_findname(struct unixfilesystem *fs, const char *name,
   // obtengo tamaño
   int dir_size = inode_getsize(&inp);
   // si no tiene ni un dirent
-  if (dir_size < sizeof(struct direntv6)) {
+  if (dir_size < (int)sizeof(struct direntv6)) {
     return -1;
   }
   // cantidad de bloques a recorrer

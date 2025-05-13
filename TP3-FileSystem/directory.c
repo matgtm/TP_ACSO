@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-
+#include <stdlib.h>
 /**
  * TODO
  * pseudo:
@@ -53,7 +53,7 @@ int directory_findname(struct unixfilesystem *fs, const char *name,
     int dirents_por_bloque = DISKIMG_SECTOR_SIZE / sizeof(struct direntv6);
     for (int j = 0; j < dirents_por_bloque; j++) {
       // si el nombre coincide, copiar el inodo al direntv6 y devolver 0
-      if (dir_entries[j].d_name != 0 && strcmp(dir_entries[j].d_name, name) == 0) {
+      if (dir_entries[j].d_inumber != 0 && strcmp(dir_entries[j].d_name, name) == 0) {
         memcpy(dirEnt, &dir_entries[j], sizeof(struct direntv6));
         free(buf);
         return 0;

@@ -1,5 +1,6 @@
 #ifndef _INO_H
 #define  _INO_H
+#define INODE_SIZE 32
 
 #include <stdint.h>
 
@@ -27,7 +28,7 @@
  * file, text file, and the root.  An inode is 'named' by its dev/inumber pair. (iget/iget.c)
  * Data, from mode on, is read in from permanent inode on volume.
  */
-
+// TAMAÑO INODE: 32 BYTES
 struct inode {
   uint16_t	i_mode;         // bit vector of file type and permissions
   uint8_t 	i_nlink;	// number of references to file
@@ -39,6 +40,7 @@ struct inode {
   uint16_t	i_atime[2];     // access time
   uint16_t	i_mtime[2];     // modify time
 };
+
 
 /* modes */
 #define	IALLOC	0100000		// file is used

@@ -1,2 +1,4 @@
 id_rsa.key
 assembly_my_bomb.txt
+TP5-ThreadPool/src/thread-pool.cc
+TP5-ThreadPool/src/thread-pool.h

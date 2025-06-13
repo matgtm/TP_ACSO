@@ -15,25 +15,28 @@
 #include <thread>      // for thread
 #include <vector>      // for vector
 #include "Semaphore.h" // for Semaphore
+#include <condition_variable>
+#include <queue>
 
 using namespace std;
 
 
 /**
  * @brief Represents a worker in the thread pool.
- * 
- * The `worker_t` struct contains information about a worker 
- * thread in the thread pool. Should be includes the thread object, 
- * availability status, the task to be executed, and a semaphore 
- * (or condition variable) to signal when work is ready for the 
+ *
+ * The `worker_t` struct contains information about a worker
+ * thread in the thread pool. Should be includes the thread object,
+ * availability status, the task to be executed, and a semaphore
+ * (or condition variable) to signal when work is ready for the
  * worker to process.
  */
 typedef struct worker {
     thread ts;
     function<void(void)> thunk;
-    /**
-     * Complete the definition of the worker_t struct here...
-     **/
+    Semaphore workerSem;
+    int id;
+    bool busy;
+    worker() : workerSem(0), busy(false) {}
 } worker_t;
 
 class ThreadPool {
@@ -65,20 +68,31 @@ class ThreadPool {
   * over the course of its lifetime.
   */
     ~ThreadPool();
-    
+
   private:
 
     void worker(int id);
     void dispatcher();
     thread dt;                              // dispatcher thread handle
     vector<worker_t> wts;                   // worker thread handles. you may want to change/remove this
-    bool done;                              // flag to indicate the pool is being destroyed
-    mutex queueLock;                        // mutex to protect the queue of tasks
+    queue<function<void(void)>> colaTareas; // Cola para las tareas (thunks)
 
-    /* It is incomplete, there should be more private variables to manage the structures... 
+    bool done;                              // flag to indicate the pool is being destroyed
+    // semaforos y condition variables
+    Semaphore semTareasDisp; // semaforo para contar tareas en cola
+    Semaphore semWorkersLibres; // semaforo para contar workers libres
+    mutex queueLock;  // mutex para cola
+    mutex wtsLock; // bloqueo wts pq tanto dispatcher como workers lo modifican
+
+    // Para funcion wait()
+    size_t tareasEnProceso;
+    mutex tareasLock; // para proteger el anterior si varios lo modifican
+    condition_variable allTasksDone;
+
+    /* It is incomplete, there should be more private variables to manage the structures...
     * *
     */
-  
+
     /* ThreadPools are the type of thing that shouldn't be cloneable, since it's
     * not clear what it means to clone a ThreadPool (should copies of all outstanding
     * functions to be executed be copied?).

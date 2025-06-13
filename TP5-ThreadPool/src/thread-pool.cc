@@ -30,7 +30,7 @@ ThreadPool::ThreadPool(size_t numThreads) :
   {
 
   // Inicializar los workers
-  for (int i = 0; i < numThreads; i++) {
+  for (size_t i = 0; i < numThreads; i++) {
     int workerId = i;
     wts[workerId].id = workerId;
     wts[workerId].ts = thread([this, workerId] { worker(workerId); });
@@ -136,7 +136,7 @@ void ThreadPool::dispatcher() {
     {
     lock_guard<mutex> wtsLG(wtsLock);
     // busco worker libre
-    for(int i = 0; i < wts.size(); i++) {
+    for(size_t i = 0; i < wts.size(); i++) {
       if(!wts[i].busy) {
         wts[i].busy = true;
         workerId = i;
